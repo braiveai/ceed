@@ -27,6 +27,7 @@ export interface ImageAnalysis {
   brightness: 'light' | 'dark' | 'mixed'
   textColor: string
   dominantBgColor: string
+  suggestedCtaColor?: string
 }
 
 export interface ElementPlacement {

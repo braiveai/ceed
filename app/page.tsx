@@ -6,16 +6,18 @@ import BrandKitPanel from '@/components/ui/BrandKitPanel'
 import CopyPanel from '@/components/ui/CopyPanel'
 import SpecSelector from '@/components/ui/SpecSelector'
 import StylePanel from '@/components/ui/StylePanel'
+import PropertiesPanel from '@/components/ui/PropertiesPanel'
+import InSituPreview from '@/components/ui/InSituPreview'
 import { SPEC_SETS } from '@/lib/specs'
 import { generateLayout } from '@/lib/fallbackLayout'
 import { BrandKit, CopySet, ElementPlacement, ElementOverride, ImageAnalysis, StyleDefaults } from '@/types'
 
 const AdCanvas = dynamic(() => import('@/components/canvas/AdCanvas'), { ssr: false })
 
-const DEFAULT_BRAND: BrandKit = { logoUrl: null, primaryColor: '#FF4438', secondaryColor: '#1a1a2e', fontFamily: 'Montserrat', companyName: '' }
+const DEFAULT_BRAND: BrandKit = { logoUrl: null, primaryColor: '#2563EB', secondaryColor: '#1a1a2e', fontFamily: 'Montserrat', companyName: '' }
 const DEFAULT_COPY: CopySet = { headline: 'Your Headline Here', subHeadline: 'Supporting message that reinforces your offer', ctaText: 'Learn More', bodyText: '' }
 const DEFAULT_STYLE: StyleDefaults = { fontSizeScale: 1, overlayOpacity: 0.5, overlayPosition: 'auto', textColor: '#ffffff', overlayColor: '#000000' }
-const DEFAULT_ANALYSIS: ImageAnalysis = { subjectPosition: 'center', safeZone: 'bottom', brightness: 'dark', textColor: '#ffffff', dominantBgColor: '#000000' }
+const DEFAULT_ANALYSIS: ImageAnalysis = { subjectPosition: 'center', safeZone: 'bottom', brightness: 'dark', textColor: '#ffffff', dominantBgColor: '#000000', suggestedCtaColor: '#2563EB' }
 
 type SidebarTab = 'brand' | 'copy' | 'style' | 'specs'
 
@@ -37,6 +39,8 @@ export default function Home() {
   const [analysisStatus, setAnalysisStatus] = useState<'idle' | 'analysing' | 'done' | 'failed'>('idle')
   const [lastAnalysis, setLastAnalysis] = useState<ImageAnalysis>(DEFAULT_ANALYSIS)
   const [isExportingAll, setIsExportingAll] = useState(false)
+  const [selectedEl, setSelectedEl] = useState<{ specId: string; index: number } | null>(null)
+  const [previewPlatformId, setPreviewPlatformId] = useState<string | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,6 +68,10 @@ export default function Home() {
         const { analysis } = await res.json()
         setLastAnalysis(analysis)
         setAnalysisStatus('done')
+        // Auto-apply AI suggested CTA colour
+        if (analysis.suggestedCtaColor) {
+          setBrandKit(prev => ({ ...prev, primaryColor: analysis.suggestedCtaColor }))
+        }
         return analysis
       }
     } catch {}
@@ -84,6 +92,7 @@ export default function Home() {
   const generateLayouts = useCallback(async () => {
     if (!uploadedImage) return
     setIsGenerating(true)
+    setSelectedEl(null)
     const analysis = await runAnalysis()
     const allSpecIds = SPEC_SETS.filter(s => selectedSets.includes(s.id)).flatMap(s => s.specs.map(sp => sp.id))
     const newLayouts = generateForSpecs(allSpecIds, analysis)
@@ -93,29 +102,29 @@ export default function Home() {
     setIsGenerating(false)
   }, [uploadedImage, selectedSets, runAnalysis, generateForSpecs])
 
-  // Incremental: add new platform without regenerating existing ones
   const handleSetsChange = useCallback((newSets: string[]) => {
     setSelectedSets(newSets)
-    if (Object.keys(layouts).length === 0) return // nothing generated yet
+    if (Object.keys(layouts).length === 0) return
     const addedSets = newSets.filter(id => !selectedSets.includes(id))
     if (addedSets.length === 0) return
     const newSpecIds = SPEC_SETS.filter(s => addedSets.includes(s.id)).flatMap(s => s.specs.map(sp => sp.id))
-    const addedLayouts = generateForSpecs(newSpecIds, lastAnalysis)
-    setLayouts(prev => ({ ...prev, ...addedLayouts }))
+    setLayouts(prev => ({ ...prev, ...generateForSpecs(newSpecIds, lastAnalysis) }))
     setActiveTab(addedSets[0])
   }, [selectedSets, layouts, lastAnalysis, generateForSpecs])
 
   const handleRegenerate = useCallback(async (specId: string) => {
-    const allSpecs = SPEC_SETS.flatMap(s => s.specs)
-    const spec = allSpecs.find(s => s.id === specId)
+    const spec = SPEC_SETS.flatMap(s => s.specs).find(s => s.id === specId)
     if (!spec) return
-    const newLayout = generateLayout(spec, copySet, brandKit, lastAnalysis, styleDefaults)
-    setLayouts(prev => ({ ...prev, [specId]: newLayout }))
+    setLayouts(prev => ({ ...prev, [specId]: generateLayout(spec, copySet, brandKit, lastAnalysis, styleDefaults) }))
     setOverrides(prev => { const n = { ...prev }; delete n[specId]; return n })
   }, [copySet, brandKit, lastAnalysis, styleDefaults])
 
   const handleAutoExport = useCallback((dataUrl: string, specId: string) => {
     setExportedDataUrls(prev => ({ ...prev, [specId]: dataUrl }))
+  }, [])
+
+  const handleElementSelect = useCallback((specId: string, index: number) => {
+    setSelectedEl({ specId, index })
   }, [])
 
   const handleOverrideChange = useCallback((specId: string, index: number, override: ElementOverride) => {
@@ -133,9 +142,7 @@ export default function Home() {
       const JSZip = (await import('jszip')).default
       const { saveAs } = await import('file-saver')
       const zip = new JSZip()
-      const folder = zip.folder('ceed-ads')
       const allSpecs = SPEC_SETS.filter(s => selectedSets.includes(s.id)).flatMap(s => s.specs)
-
       for (const spec of allSpecs) {
         const layout = layouts[spec.id]
         if (!layout) continue
@@ -144,12 +151,11 @@ export default function Home() {
           const b64 = dataUrl.replace('data:image/png;base64,', '')
           const platform = spec.platform.replace(/[^a-z0-9]/gi, '-')
           const name = spec.name.replace(/[^a-z0-9]/gi, '-')
-          folder?.file(`${platform}/${name}-${spec.width}x${spec.height}.png`, b64, { base64: true })
+          zip.folder(platform)?.file(`${name}-${spec.width}x${spec.height}.png`, b64, { base64: true })
         } catch {}
       }
-
       const blob = await zip.generateAsync({ type: 'blob' })
-      saveAs(blob, `ceed-${brandKit.companyName || 'ads'}-${Date.now()}.zip`)
+      saveAs(blob, `ceed-${(brandKit.companyName || 'ads').replace(/\s+/g, '-').toLowerCase()}.zip`)
     } catch (e) { console.error(e) }
     setIsExportingAll(false)
   }
@@ -157,7 +163,16 @@ export default function Home() {
   const activeSpecSet = SPEC_SETS.find(s => s.id === activeTab)
   const totalSpecs = SPEC_SETS.filter(s => selectedSets.includes(s.id)).reduce((a, s) => a + s.specs.length, 0)
   const hasLayouts = Object.keys(layouts).length > 0
-  const TABS: { id: SidebarTab; label: string }[] = [{ id: 'brand', label: 'Brand' }, { id: 'copy', label: 'Copy' }, { id: 'style', label: 'Style' }, { id: 'specs', label: 'Platforms' }]
+
+  // Derive selected element data for properties panel
+  const selectedElData = selectedEl ? layouts[selectedEl.specId]?.[selectedEl.index] : null
+  const selectedElOverride = selectedEl ? (overrides[selectedEl.specId]?.[selectedEl.index] || {}) : {}
+  const selectedElLocked = selectedEl ? (locked[selectedEl.specId]?.[selectedEl.index] || false) : false
+
+  const TABS: { id: SidebarTab; label: string }[] = [
+    { id: 'brand', label: 'Brand' }, { id: 'copy', label: 'Copy' },
+    { id: 'style', label: 'Style' }, { id: 'specs', label: 'Platforms' }
+  ]
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
@@ -168,22 +183,21 @@ export default function Home() {
             <span className="text-white font-semibold text-sm">Ceed</span>
             <span className="text-zinc-500 text-xs">by BRAIVE</span>
           </div>
-          {analysisStatus === 'done' && <span className="text-xs text-emerald-500 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />AI analysed</span>}
+          {analysisStatus === 'done' && <span className="text-xs text-emerald-500 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />AI analysed</span>}
           {analysisStatus === 'failed' && <span className="text-xs text-zinc-600">Smart layout</span>}
         </div>
         <div className="flex items-center gap-2">
           {hasLayouts && (
             <button onClick={exportAllZip} disabled={isExportingAll}
               className="px-4 py-2 rounded-lg bg-white text-zinc-900 text-xs font-semibold hover:bg-zinc-100 transition disabled:opacity-50 flex items-center gap-2">
-              {isExportingAll
-                ? <><span className="w-3 h-3 border border-zinc-400 border-t-zinc-900 rounded-full animate-spin" />Exporting…</>
-                : `↓ Export All (${totalSpecs})`}
+              {isExportingAll ? <><span className="w-3 h-3 border border-zinc-400 border-t-zinc-800 rounded-full animate-spin" />Exporting…</> : `↓ Export All (${totalSpecs})`}
             </button>
           )}
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
+        {/* Left sidebar */}
         <div className="border-r border-white/5 flex flex-col overflow-hidden flex-shrink-0" style={{ width: 272 }}>
           <div className="flex border-b border-white/5 flex-shrink-0">
             {TABS.map(t => (
@@ -216,7 +230,9 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Main canvas area */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Platform tabs */}
           {selectedSets.length > 0 && (
             <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5 overflow-x-auto flex-shrink-0">
               {SPEC_SETS.filter(s => selectedSets.includes(s.id)).map(set => (
@@ -230,38 +246,73 @@ export default function Home() {
             </div>
           )}
 
-          <div className="flex-1 overflow-auto p-6 bg-zinc-950">
-            {!hasLayouts ? (
-              <div className="h-full flex flex-col items-center justify-center text-center">
-                <div className="text-5xl mb-4">{selectedSets.length === 0 ? '🎯' : '🌱'}</div>
-                <h2 className="text-base font-semibold text-zinc-300 mb-2">{selectedSets.length === 0 ? 'Select platforms to begin' : 'Ready to seed'}</h2>
-                <p className="text-sm text-zinc-500 max-w-sm">
-                  {selectedSets.length === 0 ? 'Choose platforms from the Platforms tab.'
-                    : uploadedImage ? `${totalSpecs} sizes across ${selectedSets.length} platform${selectedSets.length !== 1 ? 's' : ''}. Hit Generate.`
-                    : 'Upload a hero image, then hit Generate.'}
-                </p>
-              </div>
-            ) : activeSpecSet && (
-              <>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeSpecSet.color }} />
-                  <h2 className="text-sm font-medium text-zinc-300">{activeSpecSet.platform}</h2>
-                  <span className="text-xs text-zinc-600">{activeSpecSet.specs.length} sizes · hover to edit · click element to style</span>
+          <div className="flex flex-1 overflow-hidden">
+            {/* Canvas grid */}
+            <div className="flex-1 overflow-auto p-6 bg-zinc-950" onClick={() => setSelectedEl(null)}>
+              {!hasLayouts ? (
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="text-5xl mb-4">{selectedSets.length === 0 ? '🎯' : '🌱'}</div>
+                  <h2 className="text-base font-semibold text-zinc-300 mb-2">{selectedSets.length === 0 ? 'Select platforms to begin' : 'Ready to seed'}</h2>
+                  <p className="text-sm text-zinc-500 max-w-sm">
+                    {selectedSets.length === 0 ? 'Choose platforms from the Platforms tab.'
+                      : uploadedImage ? `${totalSpecs} sizes ready. Hit Generate.`
+                      : 'Upload a hero image, then hit Generate.'}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-5 items-start">
-                  {activeSpecSet.specs.map(spec => (
-                    <AdCanvas key={spec.id} spec={spec} imageUrl={uploadedImage} logoUrl={brandKit.logoUrl}
-                      brandKit={brandKit} copySet={copySet} layout={layouts[spec.id] || []}
-                      overrides={overrides[spec.id] || {}} locked={locked[spec.id] || {}}
-                      onOverrideChange={handleOverrideChange} onLockToggle={handleLockToggle}
-                      onRegenerate={handleRegenerate} onAutoExport={handleAutoExport} />
-                  ))}
-                </div>
-              </>
+              ) : activeSpecSet && (
+                <>
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: activeSpecSet.color }} />
+                    <h2 className="text-sm font-medium text-zinc-300">{activeSpecSet.platform}</h2>
+                    <span className="text-xs text-zinc-600">{activeSpecSet.specs.length} sizes</span>
+                    <span className="text-xs text-zinc-700">· click element to edit</span>
+                    <div className="ml-auto">
+                      <button onClick={() => setPreviewPlatformId(activeTab)}
+                        className="px-3 py-1.5 rounded-md text-xs font-medium bg-white/5 hover:bg-white/10 text-zinc-300 transition flex items-center gap-1.5">
+                        👁 Preview in feed
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-5 items-start">
+                    {activeSpecSet.specs.map(spec => (
+                      <AdCanvas
+                        key={spec.id} spec={spec} imageUrl={uploadedImage} logoUrl={brandKit.logoUrl}
+                        brandKit={brandKit} copySet={copySet} layout={layouts[spec.id] || []}
+                        overrides={overrides[spec.id] || {}} locked={locked[spec.id] || {}}
+                        selectedIndex={selectedEl?.specId === spec.id ? selectedEl.index : null}
+                        onElementSelect={handleElementSelect} onDeselect={() => setSelectedEl(null)}
+                        onLockToggle={handleLockToggle} onRegenerate={handleRegenerate}
+                        onAutoExport={handleAutoExport}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Properties panel — slides in when element selected */}
+            {selectedElData && selectedEl && (
+              <PropertiesPanel
+                element={selectedElData} override={selectedElOverride}
+                locked={selectedElLocked} brandKit={brandKit}
+                specId={selectedEl.specId} elementIndex={selectedEl.index}
+                onChange={handleOverrideChange} onLockToggle={handleLockToggle}
+                onClose={() => setSelectedEl(null)}
+              />
             )}
           </div>
         </div>
       </div>
+
+      {/* In-situ preview modal */}
+      {previewPlatformId && activeSpecSet && (
+        <InSituPreview
+          specs={activeSpecSet.specs}
+          dataUrls={exportedDataUrls}
+          platformId={previewPlatformId}
+          onClose={() => setPreviewPlatformId(null)}
+        />
+      )}
     </div>
   )
 }

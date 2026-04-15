@@ -7,22 +7,16 @@ export async function POST(req: NextRequest) {
   try {
     const { imageBase64, mediaType } = await req.json()
 
-    const prompt = `Analyse this image and return a JSON object with the following fields. Return ONLY valid JSON, no markdown, no explanation.
+    const prompt = `Analyse this image and return a JSON object. Return ONLY valid JSON, no markdown, no explanation.
 
 {
   "subjectPosition": "left" | "center" | "right" | "full",
   "safeZone": "top" | "bottom" | "left" | "right",
   "brightness": "light" | "dark" | "mixed",
   "textColor": "#ffffff" | "#000000",
-  "dominantBgColor": hex color of the cleanest background area suitable for overlay
-}
-
-Rules:
-- subjectPosition: where is the main subject (person/product/object)?
-- safeZone: which area of the image has the cleanest background for text?
-- brightness: is the safe zone area light, dark, or mixed?
-- textColor: what text color would be most readable over the safe zone?
-- dominantBgColor: pick the color of the background in the safe zone area`
+  "dominantBgColor": "hex color of the cleanest background area",
+  "suggestedCtaColor": "hex color — pick a bold accent colour from the image that would work as a CTA button. Should be vibrant and contrast well against white text. If the image is mostly neutral/grey, suggest a strong brand-appropriate colour."
+}`
 
     const response = await client.messages.create({
       model: 'claude-opus-4-5',
@@ -45,11 +39,8 @@ Rules:
     // Return sensible default if API fails
     return NextResponse.json({
       analysis: {
-        subjectPosition: 'center',
-        safeZone: 'bottom',
-        brightness: 'dark',
-        textColor: '#ffffff',
-        dominantBgColor: '#000000'
+        subjectPosition: 'center', safeZone: 'bottom', brightness: 'dark',
+        textColor: '#ffffff', dominantBgColor: '#000000', suggestedCtaColor: '#2563EB'
       }
     })
   }
