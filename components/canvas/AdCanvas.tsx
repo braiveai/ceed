@@ -39,7 +39,7 @@ export default function AdCanvas({
 
   const initCanvas = useCallback(async () => {
     if (!canvasRef.current) return
-    const { fabric } = await import('fabric')
+    const fabric = await import('fabric')
 
     if (fabricRef.current) fabricRef.current.dispose()
 
