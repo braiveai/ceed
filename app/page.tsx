@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { SPEC_SETS } from '@/lib/specs'
 import { PLATFORM_CATEGORIES, getSpecsForCategory } from '@/lib/categories'
@@ -66,9 +66,10 @@ export default function Home() {
   const totalSpecs = allSelectedSpecIds.length
   const hasLayouts = Object.keys(layouts).length > 0
 
-  const effectiveCopy = activeCopyVariant !== null && copyVariants[activeCopyVariant]
+  const effectiveCopy = useMemo(() => activeCopyVariant !== null && copyVariants[activeCopyVariant]
     ? { ...copySet, headline: copyVariants[activeCopyVariant].headline, subHeadline: copyVariants[activeCopyVariant].subHeadline, ctaText: copyVariants[activeCopyVariant].ctaText }
     : copySet
+  , [activeCopyVariant, copyVariants, copySet])
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -133,7 +134,8 @@ export default function Home() {
     setIsGenerating(false)
   }, [uploadedImage, allSelectedSpecIds, runAnalysis, effectiveCopy, brandKit, styleDefaults, buildLayout])
 
-  // Auto-generate when image uploaded (debounced)
+  // Auto-generate when image uploaded — intentionally only triggers on image change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!uploadedImage || allSelectedSpecIds.length === 0) return
     if (generateDebounce.current) clearTimeout(generateDebounce.current)
