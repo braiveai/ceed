@@ -50,7 +50,7 @@ export async function exportSpecToDataUrl(
     try { logoImg = await loadImg(logoUrl) } catch {}
   }
 
-  for (const [i, el] of layout.entries()) {
+  layout.forEach((el, i) => {
     const ov = overrides[i] || {}
     const m = { ...el, ...ov }
 
@@ -67,7 +67,7 @@ export async function exportSpecToDataUrl(
     } else if (el.type === 'subheadline') {
       layer.add(new Konva.Text({ x: el.x, y: el.y, width: el.width, text: copySet.subHeadline, fontSize: m.fontSize || 16, fill: m.color || '#eee', fontFamily: brandKit.fontFamily || 'Arial', fontStyle: m.fontStyle || 'normal', align: m.textAlign || 'left' }))
     }
-  }
+  })
 
   layer.draw()
   const dataUrl = stage.toDataURL({ pixelRatio: 1 })
