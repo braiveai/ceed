@@ -57,10 +57,8 @@ async function waitForFont(fontFamily: string) {
 
 function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, overrides, locked, selectedIndex, analysis, onElementSelect, onDeselect, onLockToggle, onRegenerate, onAutoExport, onOverrideChange, onReset, showSafeZones, scale }: AdCanvasProps) {
   const stageRef = useRef<any>(null)
-  const exportStageRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const transformerRef = useRef<any>(null)
-  const elementRefs = useRef<Record<number, any>>({})
   const [bgImage, bgLoaded] = useImage(imageUrl)
   const [logoImage, logoLoaded] = useImage(logoUrl)
   const [fontReady, setFontReady] = useState(false)
@@ -93,16 +91,20 @@ function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, ove
     return { x, y, scaleX: s, scaleY: s }
   })() : null
 
-  // Attach transformer to selected element
+  // Attach transformer to selected element using stage.findOne()
   useEffect(() => {
-    if (!transformerRef.current) return
-    if (selectedIndex !== null && elementRefs.current[selectedIndex]) {
-      transformerRef.current.nodes([elementRefs.current[selectedIndex]])
-    } else {
-      transformerRef.current.nodes([])
+    if (!transformerRef.current || !stageRef.current) return
+    if (selectedIndex !== null) {
+      const node = stageRef.current.findOne(`#el-${selectedIndex}`)
+      if (node) {
+        transformerRef.current.nodes([node])
+        transformerRef.current.getLayer()?.batchDraw()
+        return
+      }
     }
+    transformerRef.current.nodes([])
     transformerRef.current.getLayer()?.batchDraw()
-  }, [selectedIndex])
+  }, [selectedIndex, layout])
 
   // Auto-export when ready
   useEffect(() => {
@@ -198,7 +200,7 @@ function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, ove
       const isSelected = interactive && selectedIndex === i
       const drag = !isLocked && interactive
       const common = {
-        ref: (node: any) => { if (node && interactive) elementRefs.current[i] = node },
+        id: `el-${i}`,
         onClick: (e: any) => interactive && handleElClick(i, el, e),
         onDragMove: (e: any) => interactive && handleDragMove(i, e),
         onDragEnd: (e: any) => interactive && handleDragEnd(i, el, e),
