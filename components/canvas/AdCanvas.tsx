@@ -15,7 +15,7 @@ interface AdCanvasProps {
   overrides: Record<number, ElementOverride>
   locked: Record<number, boolean>
   selectedIndex: number | null
-  onElementSelect: (specId: string, index: number) => void
+  onElementSelect: (specId: string, index: number, screenX: number, screenY: number) => void
   onDeselect: () => void
   onLockToggle: (specId: string, index: number) => void
   onRegenerate: (specId: string) => void
@@ -23,8 +23,7 @@ interface AdCanvasProps {
   scale?: number
 }
 
-const DISPLAY_MAX = 420
-const ZOOM_THRESHOLD = 200
+const DISPLAY_MAX = 460
 
 function useImage(url: string | null): HTMLImageElement | null {
   const [img, setImg] = useState<HTMLImageElement | null>(null)
@@ -40,6 +39,7 @@ function useImage(url: string | null): HTMLImageElement | null {
 
 function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, overrides, locked, selectedIndex, onElementSelect, onDeselect, onLockToggle, onRegenerate, onAutoExport, scale }: AdCanvasProps) {
   const stageRef = useRef<any>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const bgImage = useImage(imageUrl)
   const logoImage = useImage(logoUrl)
   const [showZoom, setShowZoom] = useState(false)
@@ -48,7 +48,6 @@ function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, ove
   const displayScale = scale ?? Math.min(1, DISPLAY_MAX / Math.max(spec.width, spec.height))
   const displayW = Math.round(spec.width * displayScale)
   const displayH = Math.round(spec.height * displayScale)
-  const isSmall = displayW < ZOOM_THRESHOLD || displayH < ZOOM_THRESHOLD
 
   const bgProps = bgImage ? (() => {
     const s = Math.max(spec.width / bgImage.width, spec.height / bgImage.height)
@@ -60,89 +59,85 @@ function AdCanvasInner({ spec, imageUrl, logoUrl, brandKit, copySet, layout, ove
     if (imageUrl && !bgImage) return
     if (logoUrl && !logoImage) return
     const t = setTimeout(() => {
-      if (stageRef.current) {
-        const dataUrl = stageRef.current.toDataURL({ pixelRatio: 1 / displayScale })
-        onAutoExport(dataUrl, spec.id)
-      }
+      if (stageRef.current) onAutoExport(stageRef.current.toDataURL({ pixelRatio: 1 / displayScale }), spec.id)
     }, 400)
     return () => clearTimeout(t)
   }, [layout, bgImage, logoImage, spec.id, displayScale, imageUrl, logoUrl, onAutoExport])
 
-  const handleRegen = async () => {
-    setIsRegenerating(true)
-    await onRegenerate(spec.id)
-    setIsRegenerating(false)
+  const handleElClick = (i: number, el: ElementPlacement, e: any) => {
+    e.cancelBubble = true
+    if (locked[i]) return
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const screenX = rect.left + (el.x + el.width / 2) * displayScale
+    const screenY = rect.top + el.y * displayScale
+    onElementSelect(spec.id, i, screenX, screenY)
   }
 
-  const renderElements = (scl: number) => layout.map((el, i) => {
+  const renderEls = (scl: number) => layout.map((el, i) => {
     const ov = overrides[i] || {}
     const m = { ...el, ...ov }
     const isLocked = locked[i]
     const isSelected = selectedIndex === i
-    const commonProps = {
-      onClick: (e: any) => { e.cancelBubble = true; if (!isLocked) onElementSelect(spec.id, i) },
-      stroke: isSelected ? '#FF4438' : undefined,
+    const common = {
+      onClick: (e: any) => handleElClick(i, el, e),
+      stroke: isSelected ? 'rgba(91,106,240,0.9)' : undefined,
       strokeWidth: isSelected ? 2 / scl : 0,
     }
-    if (el.type === 'overlay') return <Rect key={i} x={el.x} y={el.y} width={el.width} height={el.height} fill={m.backgroundColor || '#000'} opacity={m.opacity ?? 0.5} draggable={!isLocked} {...commonProps} />
+    if (el.type === 'overlay') return <Rect key={i} x={el.x} y={el.y} width={el.width} height={el.height} fill={m.backgroundColor || '#000'} opacity={m.opacity ?? 0.5} draggable={!isLocked} {...common} />
     if (el.type === 'logo' && logoImage) {
       const s = Math.min(el.width / logoImage.width, el.height / logoImage.height)
-      return <KonvaImage key={i} image={logoImage} x={el.x} y={el.y} scaleX={s} scaleY={s} draggable={!isLocked} {...commonProps} />
+      return <KonvaImage key={i} image={logoImage} x={el.x} y={el.y} scaleX={s} scaleY={s} draggable={!isLocked} {...common} />
     }
     if (el.type === 'cta') return (
-      <Group key={i} x={el.x} y={el.y} draggable={!isLocked} {...commonProps}>
+      <Group key={i} x={el.x} y={el.y} draggable={!isLocked} {...common}>
         <Rect width={el.width} height={el.height} fill={m.backgroundColor || brandKit.primaryColor} cornerRadius={m.borderRadius ?? 8} />
         <Text text={copySet.ctaText} width={el.width} height={el.height} fontSize={m.fontSize || 16} fill={m.color || '#fff'} fontFamily={brandKit.fontFamily || 'Arial'} fontStyle={m.fontStyle || 'bold'} align="center" verticalAlign="middle" />
       </Group>
     )
-    if (el.type === 'headline') return <Text key={i} x={el.x} y={el.y} width={el.width} text={copySet.headline} fontSize={m.fontSize || 24} fill={m.color || '#fff'} fontFamily={brandKit.fontFamily || 'Arial'} fontStyle={m.fontStyle || 'bold'} align={m.textAlign || 'left'} draggable={!isLocked} {...commonProps} />
-    if (el.type === 'subheadline') return <Text key={i} x={el.x} y={el.y} width={el.width} text={copySet.subHeadline} fontSize={m.fontSize || 16} fill={m.color || '#eee'} fontFamily={brandKit.fontFamily || 'Arial'} fontStyle={m.fontStyle || 'normal'} align={m.textAlign || 'left'} draggable={!isLocked} {...commonProps} />
+    if (el.type === 'headline') return <Text key={i} x={el.x} y={el.y} width={el.width} text={copySet.headline} fontSize={m.fontSize || 24} fill={m.color || '#fff'} fontFamily={brandKit.fontFamily || 'Arial'} fontStyle={m.fontStyle || 'bold'} align={m.textAlign || 'left'} draggable={!isLocked} {...common} />
+    if (el.type === 'subheadline') return <Text key={i} x={el.x} y={el.y} width={el.width} text={copySet.subHeadline} fontSize={m.fontSize || 16} fill={m.color || '#eee'} fontFamily={brandKit.fontFamily || 'Arial'} fontStyle={m.fontStyle || 'normal'} align={m.textAlign || 'left'} draggable={!isLocked} {...common} />
     return null
   })
 
   const stageEl = (w: number, h: number, scl: number, ref?: any) => (
     <Stage ref={ref} width={w} height={h} scaleX={scl} scaleY={scl} onClick={onDeselect}>
       <Layer>
-        <Rect x={0} y={0} width={spec.width} height={spec.height} fill="#1a1a2e" />
+        <Rect x={0} y={0} width={spec.width} height={spec.height} fill="#111" />
         {bgImage && bgProps && <KonvaImage image={bgImage} {...bgProps} />}
-        {renderElements(scl)}
+        {renderEls(scl)}
       </Layer>
     </Stage>
   )
 
   return (
     <>
-      <div className="flex flex-col items-center gap-1.5">
-        <div className="relative border border-white/10 rounded overflow-hidden shadow-lg group"
-          style={{ width: displayW, height: displayH }}>
+      <div className="flex flex-col items-center gap-1.5 group/canvas">
+        <div ref={containerRef} className="relative rounded overflow-hidden" style={{ width: displayW, height: displayH, border: '1px solid rgba(255,255,255,0.08)' }}>
           {stageEl(displayW, displayH, displayScale, stageRef)}
-          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {isSmall && (
-              <button onClick={() => setShowZoom(true)}
-                className="w-6 h-6 rounded bg-black/70 hover:bg-black/90 text-white text-xs flex items-center justify-center" title="Zoom to edit">⤢</button>
+          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover/canvas:opacity-100 transition-opacity">
+            {(displayW < 200 || displayH < 200) && (
+              <button onClick={() => setShowZoom(true)} className="w-5 h-5 rounded flex items-center justify-center text-xs" style={{ backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff' }}>⤢</button>
             )}
-            <button onClick={handleRegen} disabled={isRegenerating}
-              className="w-6 h-6 rounded bg-black/70 hover:bg-black/90 text-white text-xs flex items-center justify-center" title="Regenerate this size">
+            <button onClick={async () => { setIsRegenerating(true); await onRegenerate(spec.id); setIsRegenerating(false) }}
+              className="w-5 h-5 rounded flex items-center justify-center text-xs" style={{ backgroundColor: 'rgba(0,0,0,0.7)', color: '#fff' }}>
               {isRegenerating ? <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin block" /> : '↺'}
             </button>
           </div>
         </div>
-        <div className="text-xs text-zinc-600">{spec.width}×{spec.height}</div>
-        <div className="text-xs text-zinc-700">{spec.placement}</div>
+        <div className="text-center" style={{ color: 'var(--braive-muted)' }}>
+          <div className="text-xs">{spec.width}×{spec.height}</div>
+        </div>
       </div>
 
       {showZoom && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-center p-8" onClick={() => setShowZoom(false)}>
-          <div className="relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowZoom(false)} className="absolute -top-8 right-0 text-zinc-400 hover:text-white text-xs">✕ Close zoom</button>
-            <div className="border border-white/20 rounded overflow-hidden">
-              {stageEl(
-                Math.round(spec.width * Math.min(2, 700 / Math.max(spec.width, spec.height))),
-                Math.round(spec.height * Math.min(2, 700 / Math.max(spec.width, spec.height))),
-                Math.min(2, 700 / Math.max(spec.width, spec.height))
-              )}
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-8" style={{ backgroundColor: 'rgba(0,0,0,0.88)' }} onClick={() => setShowZoom(false)}>
+          <div onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowZoom(false)} className="block ml-auto mb-2 text-xs" style={{ color: 'var(--braive-muted)' }}>✕ Close</button>
+            <div className="rounded overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.15)' }}>
+              {stageEl(Math.round(spec.width * Math.min(2, 700 / Math.max(spec.width, spec.height))), Math.round(spec.height * Math.min(2, 700 / Math.max(spec.width, spec.height))), Math.min(2, 700 / Math.max(spec.width, spec.height)))}
             </div>
-            <div className="text-center text-xs text-zinc-600 mt-2">{spec.name} · {spec.width}×{spec.height}</div>
+            <div className="text-center text-xs mt-2" style={{ color: 'var(--braive-muted)' }}>{spec.name} · {spec.width}×{spec.height}</div>
           </div>
         </div>
       )}
@@ -156,9 +151,8 @@ export default function AdCanvas(props: AdCanvasProps) {
   const displayScale = props.scale ?? Math.min(1, DISPLAY_MAX / Math.max(props.spec.width, props.spec.height))
   if (!mounted) return (
     <div className="flex flex-col items-center gap-1.5">
-      <div className="border border-white/10 rounded bg-zinc-900 flex items-center justify-center"
-        style={{ width: Math.round(props.spec.width * displayScale), height: Math.round(props.spec.height * displayScale) }}>
-        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+      <div className="rounded flex items-center justify-center" style={{ width: Math.round(props.spec.width * displayScale), height: Math.round(props.spec.height * displayScale), border: '1px solid rgba(255,255,255,0.08)', backgroundColor: '#111' }}>
+        <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: 'rgba(255,255,255,0.6)' }} />
       </div>
     </div>
   )

@@ -14,11 +14,12 @@ export interface CopySet {
 }
 
 export interface StyleDefaults {
-  fontSizeScale: number       // 0.5 – 2.0 multiplier
-  overlayOpacity: number      // 0 – 1
+  fontSizeScale: number
+  overlayOpacity: number
   overlayPosition: 'top' | 'bottom' | 'auto'
   textColor: string
   overlayColor: string
+  template: 'overlay' | 'split' | 'floating' | 'bottom-bar' | 'bold-centred' | 'auto'
 }
 
 export interface ImageAnalysis {
@@ -55,23 +56,9 @@ export interface ElementOverride {
   fontStyle?: string
 }
 
-export interface CanvasLayout {
-  specId: string
-  elements: ElementPlacement[]
-}
-
-export interface GeneratedAd {
-  specId: string
-  layout: CanvasLayout
-  dataUrl?: string
-}
-
-export interface CeedProject {
-  id: string
-  brandKit: BrandKit
-  copySet: CopySet
-  uploadedImageUrl: string | null
-  selectedSpecSets: string[]
-  generatedAds: GeneratedAd[]
-  createdAt: Date
+export interface CopyVariant {
+  label: string
+  headline: string
+  subHeadline: string
+  ctaText: string
 }

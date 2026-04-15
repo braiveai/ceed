@@ -3,25 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* BRAIVE colour scheme — update these once Matt confirms hex values */
+  --braive-bg: #0C0C0E;
+  --braive-surface: #141416;
+  --braive-border: rgba(255,255,255,0.07);
+  --braive-accent: #5B6AF0;
+  --braive-accent-hover: #6B7AF8;
+  --braive-text: #F0F0F2;
+  --braive-muted: #6B6B7A;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+* { box-sizing: border-box; }
+body { background: var(--braive-bg); color: var(--braive-text); }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
-}
+input[type="range"] { accent-color: var(--braive-accent); }
+input[type="color"] { cursor: pointer; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
