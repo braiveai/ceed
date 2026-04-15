@@ -44,6 +44,10 @@ export interface ElementPlacement {
   borderRadius?: number
   opacity?: number
   zIndex?: number
+  shadowColor?: string
+  shadowBlur?: number
+  shadowOffsetX?: number
+  shadowOffsetY?: number
 }
 
 export interface ElementOverride {
@@ -59,6 +63,11 @@ export interface ElementOverride {
   y?: number
   width?: number
   height?: number
+  // Shadow (for floating template)
+  shadowColor?: string
+  shadowBlur?: number
+  shadowOffsetX?: number
+  shadowOffsetY?: number
 }
 
 export interface CopyVariant {

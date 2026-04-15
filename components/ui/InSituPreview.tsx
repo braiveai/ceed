@@ -261,45 +261,186 @@ function OOHMock({ spec, dataUrl }: { spec: AdSpec; dataUrl: string }) {
   )
 }
 
-function DisplayMock({ spec, dataUrl, dark }: { spec: AdSpec; dataUrl: string; dark: boolean }) {
-  const bg = dark ? '#1a1a1a' : '#f0f0f0'
-  const articleBg = dark ? '#242424' : '#fff'
-  const text = dark ? '#ddd' : '#222'
-  const sub = dark ? '#888' : '#666'
-  const aspect = spec.width / spec.height
-  const isMrec = spec.height >= 200 && spec.width <= 340
-  const isLeader = spec.height < 120
-  const isHalfPage = spec.height >= 500
-  const dispW = Math.min(spec.width, isMrec || isHalfPage ? 320 : 500)
-  const dispH = Math.round(dispW / aspect)
-  const loremParts = ['New research shows that AI-powered creative tools are reshaping how agencies operate at scale.','Campaign turnaround that once took days now completes in hours, with measurable quality improvements.','The shift is driven by a new generation of tools that understand brand identity and placement rules.','Agencies embracing automation report 60% faster production and significantly lower creative costs.']
+function BrowserChrome({ dark, children }: { dark: boolean; children: React.ReactNode }) {
+  const chrome = dark ? '#2a2a2e' : '#e8e8e8'
+  const bar = dark ? '#1a1a1e' : '#f5f5f5'
   return (
-    <div style={{ backgroundColor: bg, minHeight: '100%', padding: '20px 16px', fontFamily: 'Georgia, serif' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto' }}>
-        <div style={{ fontSize: 11, color: '#999', marginBottom: 6, fontFamily: 'Arial', textTransform: 'uppercase', letterSpacing: 1 }}>Marketing & Technology</div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: text, marginBottom: 10, lineHeight: 1.25 }}>AI Automation Reshapes Agency Creative in 2026</h1>
-        {isLeader && (
-          <div style={{ margin: '12px 0', textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: '#999', fontFamily: 'Arial', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Advertisement</div>
-            <div style={{ display: 'inline-block', border: '1px solid rgba(128,128,128,0.3)' }}>
-              {dataUrl ? <img src={dataUrl} alt="ad" style={{ display: 'block', width: dispW, height: dispH }} />
-                : <div style={{ width: dispW, height: dispH, backgroundColor: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#888' }}>{spec.width}×{spec.height}</div>}
+    <div style={{ borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.4)', border: `1px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.12)'}` }}>
+      {/* Chrome bar */}
+      <div style={{ backgroundColor: chrome, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {['#ff5f57','#febc2e','#28c840'].map(c => <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: c }} />)}
+        </div>
+        <div style={{ flex: 1, backgroundColor: bar, borderRadius: 4, padding: '3px 10px', fontSize: 11, color: dark ? '#888' : '#666', fontFamily: 'system-ui' }}>
+          news.com.au/technology
+        </div>
+      </div>
+      {/* Page */}
+      <div style={{ backgroundColor: dark ? '#f5f5f5' : '#f0f0f0', maxHeight: 560, overflow: 'auto' }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function AdBox({ spec, dataUrl, w, h }: { spec: AdSpec; dataUrl: string; w: number; h: number }) {
+  return (
+    <div style={{ width: w, height: h, flexShrink: 0, position: 'relative', overflow: 'hidden', backgroundColor: '#e0e0e0', border: '1px solid rgba(0,0,0,0.12)' }}>
+      {dataUrl
+        ? <img src={dataUrl} alt="ad" style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }} />
+        : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+            <div style={{ fontSize: 9, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5 }}>Ad</div>
+            <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600 }}>{spec.width}×{spec.height}</div>
+          </div>}
+      <div style={{ position: 'absolute', top: 2, left: 2, fontSize: 8, color: 'rgba(0,0,0,0.4)', backgroundColor: 'rgba(255,255,255,0.7)', padding: '1px 3px', borderRadius: 2, fontFamily: 'system-ui' }}>Ad</div>
+    </div>
+  )
+}
+
+// Shared content blocks
+function ContentBlocks({ lines = 4, dark = false }: { lines?: number; dark?: boolean }) {
+  const c = dark ? '#ccc' : '#d8d8d8'
+  const c2 = dark ? '#bbb' : '#c8c8c8'
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <div key={i} style={{ marginBottom: 10 }}>
+          <div style={{ height: 11, backgroundColor: c, borderRadius: 2, marginBottom: 5, width: `${75 + (i % 3) * 8}%` }} />
+          <div style={{ height: 11, backgroundColor: c, borderRadius: 2, marginBottom: 5, width: `${85 + (i % 2) * 10}%` }} />
+          <div style={{ height: 11, backgroundColor: c2, borderRadius: 2, width: `${55 + (i % 4) * 8}%` }} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function NavBar({ dark }: { dark: boolean }) {
+  const bg = dark ? '#1e1e22' : '#ffffff'
+  const border = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'
+  const c = dark ? '#ccc' : '#444'
+  const c2 = dark ? '#888' : '#888'
+  return (
+    <div style={{ backgroundColor: bg, borderBottom: `1px solid ${border}`, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16 }}>
+      <div style={{ width: 60, height: 14, backgroundColor: dark ? '#555' : '#c0c0c0', borderRadius: 2 }} />
+      {['Home','News','Tech','Sport','Life'].map(l => (
+        <div key={l} style={{ fontSize: 11, color: l === 'Tech' ? '#5B6AF0' : c2, fontFamily: 'system-ui', fontWeight: l === 'Tech' ? 600 : 400 }}>{l}</div>
+      ))}
+    </div>
+  )
+}
+
+function PageHeadline({ dark }: { dark: boolean }) {
+  const text = dark ? '#1a1a1a' : '#1a1a1a'
+  const sub = dark ? '#555' : '#555'
+  return (
+    <div style={{ padding: '14px 16px 10px' }}>
+      <div style={{ fontSize: 9, color: '#5B6AF0', fontFamily: 'system-ui', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6, fontWeight: 600 }}>Technology</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: text, lineHeight: 1.3, marginBottom: 6, fontFamily: 'Georgia, serif' }}>AI Automation Reshapes How Agencies Work in 2026</div>
+      <div style={{ fontSize: 11, color: sub, fontFamily: 'system-ui' }}>By Staff Reporter · 2 hours ago</div>
+    </div>
+  )
+}
+
+function DisplayMock({ spec, dataUrl, dark }: { spec: AdSpec; dataUrl: string; dark: boolean }) {
+  const { width, height } = spec
+  const aspect = width / height
+
+  // Categorise the format
+  const isLeaderboard = height <= 100 && width >= 468       // 728×90, 970×90, 468×60 etc
+  const isBillboard = height > 100 && height <= 300 && width >= 700  // 970×250, 980×120
+  const isMrec = width <= 336 && height <= 280 && height >= 200      // 300×250, 336×280
+  const isHalfPage = width <= 340 && height >= 500           // 300×600
+  const isSkyscraper = width <= 170 && height >= 400         // 160×600, 120×600
+  const isWideRect = width <= 340 && height < 200 && height >= 80    // smaller boxes
+  const isMobileBanner = width <= 330 && height <= 110       // 320×50, 320×100
+
+  // Scale ad to fit in page mock sensibly
+  const PAGE_W = 660  // inner page width in preview
+  const maxAdW = isLeaderboard || isBillboard ? PAGE_W - 32 : isSkyscraper ? 80 : isMrec || isHalfPage ? 200 : Math.min(width, 200)
+  const adW = maxAdW
+  const adH = Math.round(adW / aspect)
+
+  // Mobile banner: show in a phone frame
+  if (isMobileBanner) {
+    return (
+      <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: dark ? '#1a1a1a' : '#e8e8e8' }}>
+        <div style={{ width: 280, height: 560, backgroundColor: '#fff', borderRadius: 24, boxShadow: '0 16px 48px rgba(0,0,0,0.4)', overflow: 'hidden', position: 'relative', border: '6px solid #222' }}>
+          <NavBar dark={false} />
+          <div style={{ padding: '12px 12px 0' }}>
+            <PageHeadline dark={false} />
+            <div style={{ padding: '0 0 8px' }}><ContentBlocks lines={5} /></div>
+          </div>
+          {/* Sticky banner at bottom */}
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: '#fff', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+              <AdBox spec={spec} dataUrl={dataUrl} w={Math.min(adW, 260)} h={Math.min(adH, 90)} />
             </div>
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 28, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1 }}>
-            {loremParts.map((t, i) => <p key={i} style={{ fontSize: 15, lineHeight: 1.75, color: text, marginBottom: 14 }}>{t}</p>)}
-          </div>
-          {(isMrec || isHalfPage) && (
-            <div style={{ flexShrink: 0 }}>
-              <div style={{ fontSize: 9, color: '#999', fontFamily: 'Arial', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Advertisement</div>
-              <div style={{ border: '1px solid rgba(128,128,128,0.25)' }}>
-                {dataUrl ? <img src={dataUrl} alt="ad" style={{ display: 'block', width: dispW, height: dispH }} />
-                  : <div style={{ width: dispW, height: dispH, backgroundColor: '#ddd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: '#888' }}>{spec.width}×{spec.height}</div>}
+        </div>
+      </div>
+    )
+  }
+
+  // All desktop formats in browser chrome
+  const bg = '#f5f5f5'
+
+  return (
+    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 20px', backgroundColor: dark ? '#1a1a1a' : '#e0e0e0' }}>
+      <div style={{ width: Math.min(PAGE_W + 40, '100%' as any) }}>
+        <BrowserChrome dark={dark}>
+          {/* Nav */}
+          <NavBar dark={false} />
+
+          {/* Leaderboard — top of page */}
+          {isLeaderboard && (
+            <div style={{ padding: '10px 16px', textAlign: 'center', backgroundColor: bg }}>
+              <div style={{ fontSize: 8, color: '#aaa', marginBottom: 3, fontFamily: 'system-ui', textTransform: 'uppercase', letterSpacing: 0.5 }}>Advertisement</div>
+              <AdBox spec={spec} dataUrl={dataUrl} w={adW} h={adH} />
+            </div>
+          )}
+
+          {/* Billboard — between content sections */}
+          {isBillboard && (
+            <>
+              <div style={{ backgroundColor: bg }}>
+                <PageHeadline dark={false} />
+                <div style={{ padding: '0 16px 12px', display: 'flex', gap: 12 }}><ContentBlocks lines={2} /></div>
+              </div>
+              <div style={{ padding: '10px 16px', textAlign: 'center', backgroundColor: '#ebebeb', borderTop: '1px solid rgba(0,0,0,0.06)', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                <div style={{ fontSize: 8, color: '#aaa', marginBottom: 3, fontFamily: 'system-ui', textTransform: 'uppercase', letterSpacing: 0.5 }}>Advertisement</div>
+                <AdBox spec={spec} dataUrl={dataUrl} w={adW} h={adH} />
+              </div>
+              <div style={{ padding: '12px 16px', backgroundColor: bg, display: 'flex', gap: 12 }}><ContentBlocks lines={2} /></div>
+            </>
+          )}
+
+          {/* MREC / Half Page / Skyscraper — in sidebar */}
+          {(isMrec || isHalfPage || isSkyscraper || isWideRect) && (
+            <div style={{ backgroundColor: bg }}>
+              <PageHeadline dark={false} />
+              {isLeaderboard ? null : null}
+              <div style={{ padding: '0 16px 16px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                {/* Article content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <ContentBlocks lines={isHalfPage ? 8 : 5} />
+                </div>
+                {/* Sidebar ad */}
+                <div style={{ flexShrink: 0 }}>
+                  <div style={{ fontSize: 8, color: '#aaa', marginBottom: 3, fontFamily: 'system-ui', textTransform: 'uppercase', letterSpacing: 0.5, textAlign: 'center' }}>Ad</div>
+                  <AdBox spec={spec} dataUrl={dataUrl} w={adW} h={adH} />
+                  {!isHalfPage && (
+                    <div style={{ marginTop: 12 }}>
+                      <ContentBlocks lines={2} />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
+        </BrowserChrome>
+
+        <div style={{ textAlign: 'center', marginTop: 10, fontSize: 11, color: dark ? '#555' : '#888', fontFamily: 'system-ui' }}>
+          {spec.name} · {spec.width}×{spec.height} · {spec.placement}
         </div>
       </div>
     </div>
