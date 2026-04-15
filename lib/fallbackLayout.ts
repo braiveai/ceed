@@ -125,3 +125,15 @@ export function generateLayout(
 }
 
 export const generateFallbackLayout = generateLayout
+
+// Logo-only layout for PMax logo assets
+export function generateLogoLayout(spec: AdSpec, brandKit: BrandKit, style: StyleDefaults): ElementPlacement[] {
+  const { width, height } = spec
+  const pad = Math.round(Math.min(width, height) * 0.1)
+  return [
+    { type: 'overlay', x: 0, y: 0, width, height, backgroundColor: style.overlayColor, opacity: 0.15, zIndex: 2 },
+    { type: 'logo', x: pad, y: Math.round((height - height * 0.4) / 2), width: width - pad * 2, height: Math.round(height * 0.4), zIndex: 10 },
+  ]
+}
+
+export const LOGO_ONLY_SPECS = ['pmax-logo-square', 'pmax-logo-landscape']
