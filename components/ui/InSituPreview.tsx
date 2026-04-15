@@ -44,7 +44,7 @@ function MetaFeedMock({ spec, dataUrl, dark }: { spec: AdSpec; dataUrl: string; 
             </div>
             <div style={{ color: sub, fontSize: 22, lineHeight: 1 }}>···</div>
           </div>
-          <div style={{ fontSize: 14, color: text, padding: '0 16px 10px', lineHeight: 1.5 }}>See what we've been working on — built for results.</div>
+          <div style={{ fontSize: 14, color: text, padding: '0 16px 10px', lineHeight: 1.5 }}>See what we&apos;ve been working on — built for results.</div>
           <div style={{ height: h, overflow: 'hidden', backgroundColor: '#111' }}>
             {dataUrl ? <img src={dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : <div style={{ width: '100%', height: h, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>{spec.width}×{spec.height}</div>}
@@ -209,7 +209,7 @@ function EmailMock({ spec, dataUrl, dark }: { spec: AdSpec; dataUrl: string; dar
           </div>
           <div style={{ padding: '24px 24px 0' }}>
             <p style={{ fontSize: 14, lineHeight: 1.6, color: text, marginTop: 0 }}>Hi there,</p>
-            <p style={{ fontSize: 14, lineHeight: 1.6, color: text }}>We've got something exciting to share with you this week. Check out what we've been working on:</p>
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: text }}>We&apos;ve got something exciting to share with you this week. Check out what we&apos;ve been working on:</p>
           </div>
           {/* Ad image */}
           <div style={{ padding: '16px 24px' }}>

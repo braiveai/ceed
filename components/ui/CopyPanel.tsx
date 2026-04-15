@@ -83,7 +83,7 @@ export default function CopyPanel({ copySet, companyName, onChange, onApplyVaria
 
           {variants.length > 0 && (
             <div className="space-y-2 pt-1">
-              <div className="text-xs text-zinc-600 pb-1">Click "Use this" to generate a separate canvas set with that copy</div>
+              <div className="text-xs text-zinc-600 pb-1">Click &ldquo;Use this&rdquo; to generate a separate canvas set with that copy</div>
               {variants.map((v, i) => (
                 <div key={i} className={`rounded border transition ${activeVariant === i ? 'border-orange-500/50 bg-orange-500/5' : 'border-white/5 bg-zinc-900'}`}>
                   <div className="px-3 pt-2.5 pb-2">
