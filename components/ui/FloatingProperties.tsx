@@ -37,17 +37,19 @@ export default function FloatingProperties({
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
 
-  // Position: try to show above anchor, shift left if near right edge
+  // Position: show above anchor, flip below if too close to top, clamp to screen edges
   const panelW = 280
-  const left = Math.min(anchorX - panelW / 2, window.innerWidth - panelW - 16)
-  const top = anchorY - 12
+  const panelH = 180 // approximate
+  const left = Math.max(16, Math.min(anchorX - panelW / 2, (typeof window !== 'undefined' ? window.innerWidth : 1200) - panelW - 16))
+  const showAbove = anchorY > panelH + 60
+  const top = showAbove ? anchorY - 12 : anchorY + 24
 
   const isText = element.type === 'headline' || element.type === 'subheadline' || element.type === 'cta'
   const typeLabel: Record<string, string> = { headline: 'Headline', subheadline: 'Sub-headline', cta: 'CTA Button', overlay: 'Overlay', logo: 'Logo' }
 
   return (
     <div ref={ref} className="fixed z-50 shadow-2xl rounded-xl border"
-      style={{ left, top, width: panelW, backgroundColor: '#1A1A1F', borderColor: 'rgba(255,255,255,0.1)', transform: 'translateY(-100%)' }}>
+      style={{ left, top, width: panelW, backgroundColor: '#1A1A1F', borderColor: 'rgba(255,255,255,0.1)', transform: showAbove ? 'translateY(-100%)' : 'none' }}>
 
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2.5 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>

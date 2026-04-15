@@ -563,7 +563,7 @@ export default function Home() {
           )}
 
           {/* Canvas grid */}
-          <div className="flex-1 overflow-auto p-6" style={{ backgroundColor: 'var(--braive-bg)' }} onClick={() => setSelectedEl(null)}>
+          <div className="flex-1 overflow-auto p-6" style={{ backgroundColor: 'var(--braive-bg)' }}>
             {!uploadedImage ? (
               <div className="h-full flex flex-col items-center justify-center text-center gap-4">
                 <div onClick={() => imageInputRef.current?.click()} className="cursor-pointer rounded-2xl p-10 transition"

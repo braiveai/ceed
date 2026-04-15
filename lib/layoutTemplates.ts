@@ -207,8 +207,15 @@ export function applyTemplate(
   const { width, height } = spec
   const isWide = width / height > 2.2
   const isTiny = height < 80
+  const isNarrow = width < 180  // skyscrapers, vertical banners
 
   if (isTiny || isWide) return overlayTemplate(spec, copy, brand, style, analysis)
+
+  // For narrow formats, always use overlay but with aggressive font scaling
+  if (isNarrow) {
+    const narrowStyle = { ...style, fontSizeScale: style.fontSizeScale * Math.min(1, width / 160) }
+    return overlayTemplate(spec, copy, brand, narrowStyle, analysis)
+  }
 
   switch (template) {
     case 'split': return splitTemplate(spec, copy, brand, style, analysis)
