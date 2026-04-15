@@ -54,6 +54,11 @@ export interface ElementOverride {
   opacity?: number
   borderRadius?: number
   fontStyle?: string
+  // Position/size overrides (set when user drags or resizes)
+  x?: number
+  y?: number
+  width?: number
+  height?: number
 }
 
 export interface CopyVariant {

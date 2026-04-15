@@ -70,7 +70,8 @@ export async function exportSpecToDataUrl(
   })
 
   layer.draw()
-  const dataUrl = stage.toDataURL({ pixelRatio: 1 })
+  // Export at full spec resolution regardless of display scale
+  const dataUrl = stage.toDataURL({ pixelRatio: 1, mimeType: 'image/png' })
   stage.destroy()
   document.body.removeChild(container)
   return dataUrl

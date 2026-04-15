@@ -45,6 +45,9 @@ export default function Home() {
   const [previewSetId, setPreviewSetId] = useState<string | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [showExportSummary, setShowExportSummary] = useState(false)
+  const [showSafeZones, setShowSafeZones] = useState(false)
+  const [undoStack, setUndoStack] = useState<Array<Record<string, Record<number, ElementOverride>>>>([])
+  const scrollPositions = useRef<Record<string, number>>({})
   const [isGeneratingVariants, setIsGeneratingVariants] = useState(false)
   const [variantOffer, setVariantOffer] = useState('')
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -153,12 +156,39 @@ export default function Home() {
   }, [])
 
   const handleOverrideChange = useCallback((specId: string, index: number, override: ElementOverride) => {
-    setOverrides(prev => ({ ...prev, [specId]: { ...(prev[specId] || {}), [index]: override } }))
+    setOverrides(prev => {
+      setUndoStack(stack => [...stack.slice(-19), prev])
+      return { ...prev, [specId]: { ...(prev[specId] || {}), [index]: override } }
+    })
+  }, [])
+
+  const handleReset = useCallback((specId: string) => {
+    setOverrides(prev => { const n = { ...prev }; delete n[specId]; return n })
+  }, [])
+
+  const handleUndo = useCallback(() => {
+    setUndoStack(stack => {
+      if (stack.length === 0) return stack
+      const prev = stack[stack.length - 1]
+      setOverrides(prev)
+      return stack.slice(0, -1)
+    })
   }, [])
 
   const handleLockToggle = useCallback((specId: string, index: number) => {
     setLocked(prev => ({ ...prev, [specId]: { ...(prev[specId] || {}), [index]: !prev[specId]?.[index] } }))
   }, [])
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isMeta = e.metaKey || e.ctrlKey
+      if (isMeta && e.key === 'z') { e.preventDefault(); handleUndo() }
+      if (e.key === 'Escape') setSelectedEl(null)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [handleUndo])
 
   const handleRegenerate = useCallback(async (specId: string) => {
     const spec = SPEC_SETS.flatMap(s => s.specs).find(s => s.id === specId)
@@ -244,6 +274,16 @@ export default function Home() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {undoStack.length > 0 && (
+            <button onClick={handleUndo} className="px-3 py-2 rounded-lg text-xs transition"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', color: 'var(--braive-muted)' }}>
+              ↩ Undo ({undoStack.length})
+            </button>
+          )}
+          <button onClick={() => setShowSafeZones(p => !p)} className="px-3 py-2 rounded-lg text-xs transition"
+            style={{ backgroundColor: showSafeZones ? 'rgba(255,200,0,0.15)' : 'rgba(255,255,255,0.06)', color: showSafeZones ? '#ffc800' : 'var(--braive-muted)', border: showSafeZones ? '1px solid rgba(255,200,0,0.3)' : '1px solid transparent' }}>
+            {showSafeZones ? '⚠ Safe zones on' : 'Safe zones'}
+          </button>
           {hasLayouts && (
             <button onClick={() => setShowExportSummary(true)}
               className="px-4 py-2 rounded-lg text-xs font-semibold transition"
@@ -591,9 +631,12 @@ export default function Home() {
                       brandKit={brandKit} copySet={effectiveCopy} layout={layouts[spec.id] || []}
                       overrides={overrides[spec.id] || {}} locked={locked[spec.id] || {}}
                       selectedIndex={selectedEl?.specId === spec.id ? selectedEl.index : null}
+                      analysis={lastAnalysis}
+                      showSafeZones={showSafeZones}
                       onElementSelect={handleElementSelect} onDeselect={() => setSelectedEl(null)}
                       onLockToggle={handleLockToggle} onRegenerate={handleRegenerate}
-                      onAutoExport={handleAutoExport} />
+                      onAutoExport={handleAutoExport} onOverrideChange={handleOverrideChange}
+                      onReset={handleReset} />
                   ))}
                 </div>
               </>
