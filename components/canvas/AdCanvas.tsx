@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -16,8 +17,8 @@ interface AdCanvasProps {
 }
 
 interface FabricCanvas {
-  add: (obj: unknown) => void
-  sendToBack: (obj: unknown) => void
+  add: (obj: any) => void
+  sendToBack: (obj: any) => void
   renderAll: () => void
   dispose: () => void
   toDataURL: (opts: { format: string; multiplier: number }) => string
@@ -47,7 +48,7 @@ export default function AdCanvas({
       width: spec.width,
       height: spec.height,
       backgroundColor: '#1a1a2e',
-    }) as FabricCanvas
+    }) as unknown as FabricCanvas
 
     fabricRef.current = canvas
 
