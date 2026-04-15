@@ -13,6 +13,22 @@ export interface CopySet {
   bodyText?: string
 }
 
+export interface StyleDefaults {
+  fontSizeScale: number       // 0.5 – 2.0 multiplier
+  overlayOpacity: number      // 0 – 1
+  overlayPosition: 'top' | 'bottom' | 'auto'
+  textColor: string
+  overlayColor: string
+}
+
+export interface ImageAnalysis {
+  subjectPosition: 'left' | 'center' | 'right' | 'full'
+  safeZone: 'top' | 'bottom' | 'left' | 'right'
+  brightness: 'light' | 'dark' | 'mixed'
+  textColor: string
+  dominantBgColor: string
+}
+
 export interface ElementPlacement {
   type: 'image' | 'logo' | 'headline' | 'subheadline' | 'cta' | 'overlay'
   x: number
@@ -26,6 +42,16 @@ export interface ElementPlacement {
   borderRadius?: number
   opacity?: number
   zIndex?: number
+}
+
+export interface ElementOverride {
+  fontSize?: number
+  color?: string
+  backgroundColor?: string
+  textAlign?: 'left' | 'center' | 'right'
+  opacity?: number
+  borderRadius?: number
+  fontStyle?: string
 }
 
 export interface CanvasLayout {
