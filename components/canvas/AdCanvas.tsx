@@ -1,8 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useRef, useEffect, useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { AdSpec } from '@/lib/specs'
 import { BrandKit, CopySet, ElementPlacement } from '@/types'
+
+// Dynamically import Konva components to avoid SSR issues
+const Stage = dynamic(() => import('react-konva').then(m => ({ default: m.Stage })), { ssr: false })
+const Layer = dynamic(() => import('react-konva').then(m => ({ default: m.Layer })), { ssr: false })
+const Rect = dynamic(() => import('react-konva').then(m => ({ default: m.Rect })), { ssr: false })
+const Text = dynamic(() => import('react-konva').then(m => ({ default: m.Text })), { ssr: false })
+const KonvaImage = dynamic(() => import('react-konva').then(m => ({ default: m.Image })), { ssr: false })
+const Group = dynamic(() => import('react-konva').then(m => ({ default: m.Group })), { ssr: false })
 
 interface AdCanvasProps {
   spec: AdSpec
@@ -15,153 +24,157 @@ interface AdCanvasProps {
   scale?: number
 }
 
-interface FabricCanvas {
-  add: (obj: any) => void
-  sendToBack: (obj: any) => void
-  renderAll: () => void
-  dispose: () => void
-  toDataURL: (opts: { format: string; multiplier: number }) => string
-  _ceedExport?: () => void
-}
-
 const DISPLAY_MAX = 480
 
-export default function AdCanvas({
+function useImage(url: string | null): HTMLImageElement | null {
+  const [img, setImg] = useState<HTMLImageElement | null>(null)
+  useEffect(() => {
+    if (!url) { setImg(null); return }
+    const i = new window.Image()
+    i.crossOrigin = 'anonymous'
+    i.onload = () => setImg(i)
+    i.src = url
+  }, [url])
+  return img
+}
+
+function AdCanvasInner({
   spec, imageUrl, logoUrl, brandKit, copySet, layout, onExport, scale,
 }: AdCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fabricRef = useRef<FabricCanvas | null>(null)
-  const [isReady, setIsReady] = useState(false)
+  const stageRef = useRef<any>(null)
+  const bgImage = useImage(imageUrl)
+  const logoImage = useImage(logoUrl)
 
   const displayScale = scale ?? Math.min(1, DISPLAY_MAX / Math.max(spec.width, spec.height))
   const displayW = Math.round(spec.width * displayScale)
   const displayH = Math.round(spec.height * displayScale)
 
-  const initCanvas = useCallback(async () => {
-    if (!canvasRef.current) return
-    const fabric = await import('fabric')
-
-    if (fabricRef.current) fabricRef.current.dispose()
-
-    const canvas = new fabric.Canvas(canvasRef.current, {
-      width: spec.width,
-      height: spec.height,
-      backgroundColor: '#1a1a2e',
-    }) as unknown as FabricCanvas
-
-    fabricRef.current = canvas
-
-    if (imageUrl) {
-      fabric.Image.fromURL(imageUrl, (img: { width?: number; height?: number; set: (opts: Record<string, unknown>) => void }) => {
-        const scaleX = spec.width / (img.width || 1)
-        const scaleY = spec.height / (img.height || 1)
-        const imgScale = Math.max(scaleX, scaleY)
-        img.set({
-          scaleX: imgScale, scaleY: imgScale,
-          left: (spec.width - (img.width || 0) * imgScale) / 2,
-          top: (spec.height - (img.height || 0) * imgScale) / 2,
-          selectable: true, evented: true,
-        })
-        canvas.add(img)
-        canvas.sendToBack(img)
-        canvas.renderAll()
-      }, { crossOrigin: 'anonymous' })
+  // Scale background image to cover canvas
+  const bgProps = bgImage ? (() => {
+    const scaleX = spec.width / bgImage.width
+    const scaleY = spec.height / bgImage.height
+    const s = Math.max(scaleX, scaleY)
+    return {
+      x: (spec.width - bgImage.width * s) / 2,
+      y: (spec.height - bgImage.height * s) / 2,
+      scaleX: s,
+      scaleY: s,
     }
+  })() : null
 
-    for (const el of layout) {
-      const x = el.x * displayScale
-      const y = el.y * displayScale
-      const w = el.width * displayScale
-      const h = el.height * displayScale
-      const fs = (el.fontSize || 16) * displayScale
-
-      if (el.type === 'overlay') {
-        const rect = new fabric.Rect({
-          left: x, top: y, width: w, height: h,
-          fill: el.backgroundColor || '#000000',
-          opacity: el.opacity ?? 0.5,
-          selectable: true, evented: true,
-        })
-        canvas.add(rect)
-
-      } else if (el.type === 'logo' && logoUrl) {
-        fabric.Image.fromURL(logoUrl, (img: { width?: number; height?: number; set: (opts: Record<string, unknown>) => void }) => {
-          const imgScale = Math.min(w / (img.width || 1), h / (img.height || 1))
-          img.set({ left: x, top: y, scaleX: imgScale, scaleY: imgScale, selectable: true, evented: true })
-          canvas.add(img)
-          canvas.renderAll()
-        }, { crossOrigin: 'anonymous' })
-
-      } else if (el.type === 'cta') {
-        const group = new fabric.Group([
-          new fabric.Rect({
-            width: w, height: h,
-            fill: el.backgroundColor || brandKit.primaryColor,
-            rx: (el.borderRadius || 8) * displayScale,
-            ry: (el.borderRadius || 8) * displayScale,
-          }),
-          new fabric.Text(copySet.ctaText, {
-            fontSize: fs, fill: el.color || '#ffffff',
-            fontFamily: brandKit.fontFamily || 'Arial',
-            fontWeight: 'bold', textAlign: 'center',
-            originX: 'center', originY: 'center',
-            left: w / 2, top: h / 2,
-          }),
-        ], { left: x, top: y, selectable: true, evented: true })
-        canvas.add(group)
-
-      } else if (el.type === 'headline') {
-        const text = new fabric.Textbox(copySet.headline, {
-          left: x, top: y, width: w, fontSize: fs,
-          fill: el.color || '#ffffff',
-          fontFamily: brandKit.fontFamily || 'Arial',
-          fontWeight: 'bold', textAlign: el.textAlign || 'left',
-          selectable: true, evented: true,
-        })
-        canvas.add(text)
-
-      } else if (el.type === 'subheadline') {
-        const text = new fabric.Textbox(copySet.subHeadline, {
-          left: x, top: y, width: w, fontSize: fs,
-          fill: el.color || '#eeeeee',
-          fontFamily: brandKit.fontFamily || 'Arial',
-          textAlign: el.textAlign || 'left',
-          selectable: true, evented: true,
-        })
-        canvas.add(text)
-      }
-    }
-
-    canvas.renderAll()
-    setIsReady(true)
-
-    if (onExport) {
-      canvas._ceedExport = () => {
-        const dataUrl = canvas.toDataURL({ format: 'png', multiplier: 1 / displayScale })
-        onExport(dataUrl, spec.id)
-      }
-    }
-  }, [spec, imageUrl, logoUrl, brandKit, copySet, layout, displayScale, onExport])
-
-  useEffect(() => {
-    initCanvas()
-    return () => { if (fabricRef.current) { fabricRef.current.dispose(); fabricRef.current = null } }
-  }, [initCanvas])
+  const handleExport = useCallback(() => {
+    if (!stageRef.current || !onExport) return
+    const dataUrl = stageRef.current.toDataURL({ pixelRatio: 1 / displayScale })
+    onExport(dataUrl, spec.id)
+  }, [onExport, spec.id, displayScale])
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="relative border border-white/10 rounded overflow-hidden shadow-lg" style={{ width: displayW, height: displayH }}>
-        <canvas ref={canvasRef} style={{ width: displayW, height: displayH, transformOrigin: 'top left' }} />
-        {!isReady && (
-          <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center">
-            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-          </div>
-        )}
+      <div className="border border-white/10 rounded overflow-hidden shadow-lg" style={{ width: displayW, height: displayH }}>
+        <Stage ref={stageRef} width={displayW} height={displayH} scaleX={displayScale} scaleY={displayScale}>
+          <Layer>
+            {/* Background colour */}
+            <Rect x={0} y={0} width={spec.width} height={spec.height} fill="#1a1a2e" />
+
+            {/* Background image */}
+            {bgImage && bgProps && (
+              <KonvaImage image={bgImage} {...bgProps} />
+            )}
+
+            {/* Layout elements */}
+            {layout.map((el, i) => {
+              if (el.type === 'overlay') {
+                return (
+                  <Rect
+                    key={i}
+                    x={el.x} y={el.y}
+                    width={el.width} height={el.height}
+                    fill={el.backgroundColor || '#000000'}
+                    opacity={el.opacity ?? 0.5}
+                    draggable
+                  />
+                )
+              }
+
+              if (el.type === 'logo' && logoImage) {
+                const s = Math.min(el.width / logoImage.width, el.height / logoImage.height)
+                return (
+                  <KonvaImage
+                    key={i}
+                    image={logoImage}
+                    x={el.x} y={el.y}
+                    scaleX={s} scaleY={s}
+                    draggable
+                  />
+                )
+              }
+
+              if (el.type === 'cta') {
+                return (
+                  <Group key={i} x={el.x} y={el.y} draggable>
+                    <Rect
+                      width={el.width} height={el.height}
+                      fill={el.backgroundColor || brandKit.primaryColor}
+                      cornerRadius={el.borderRadius || 8}
+                    />
+                    <Text
+                      text={copySet.ctaText}
+                      width={el.width} height={el.height}
+                      fontSize={el.fontSize || 16}
+                      fill={el.color || '#ffffff'}
+                      fontFamily={brandKit.fontFamily || 'Arial'}
+                      fontStyle="bold"
+                      align="center"
+                      verticalAlign="middle"
+                    />
+                  </Group>
+                )
+              }
+
+              if (el.type === 'headline') {
+                return (
+                  <Text
+                    key={i}
+                    x={el.x} y={el.y}
+                    width={el.width}
+                    text={copySet.headline}
+                    fontSize={el.fontSize || 24}
+                    fill={el.color || '#ffffff'}
+                    fontFamily={brandKit.fontFamily || 'Arial'}
+                    fontStyle="bold"
+                    align={el.textAlign || 'left'}
+                    draggable
+                  />
+                )
+              }
+
+              if (el.type === 'subheadline') {
+                return (
+                  <Text
+                    key={i}
+                    x={el.x} y={el.y}
+                    width={el.width}
+                    text={copySet.subHeadline}
+                    fontSize={el.fontSize || 16}
+                    fill={el.color || '#eeeeee'}
+                    fontFamily={brandKit.fontFamily || 'Arial'}
+                    align={el.textAlign || 'left'}
+                    draggable
+                  />
+                )
+              }
+
+              return null
+            })}
+          </Layer>
+        </Stage>
       </div>
+
       <div className="text-xs text-zinc-500">{spec.width}×{spec.height} · {spec.placement}</div>
+
       {onExport && (
         <button
-          onClick={() => fabricRef.current?._ceedExport?.()}
+          onClick={handleExport}
           className="text-xs px-3 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 transition"
         >
           Export
@@ -169,4 +182,24 @@ export default function AdCanvas({
       )}
     </div>
   )
+}
+
+// Wrapper to prevent SSR
+export default function AdCanvas(props: AdCanvasProps) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!mounted) {
+    const displayScale = props.scale ?? Math.min(1, DISPLAY_MAX / Math.max(props.spec.width, props.spec.height))
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className="border border-white/10 rounded bg-zinc-900 flex items-center justify-center"
+          style={{ width: Math.round(props.spec.width * displayScale), height: Math.round(props.spec.height * displayScale) }}
+        >
+          <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+        </div>
+      </div>
+    )
+  }
+  return <AdCanvasInner {...props} />
 }
