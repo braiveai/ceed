@@ -1,180 +1,127 @@
 import { ElementPlacement, ImageAnalysis, StyleDefaults } from '@/types'
 import { AdSpec } from './specs'
+import { estimateTextHeight, fitFontSize } from './textUtils'
 
 interface CopySet { headline: string; subHeadline: string; ctaText: string }
 interface BrandKit { primaryColor: string; secondaryColor: string; companyName: string }
 
 const DEFAULT_ANALYSIS: ImageAnalysis = {
-  subjectPosition: 'center', safeZone: 'bottom',
-  brightness: 'dark', textColor: '#ffffff', dominantBgColor: '#000000'
+  subjectPosition: 'center', safeZone: 'bottom', brightness: 'dark',
+  textColor: '#ffffff', dominantBgColor: '#000000'
+}
+const DEFAULT_STYLE: StyleDefaults = {
+  fontSizeScale: 1, overlayOpacity: 0.5, overlayPosition: 'auto',
+  textColor: '#ffffff', overlayColor: '#000000'
 }
 
-const DEFAULT_STYLE: StyleDefaults = {
-  fontSizeScale: 1, overlayOpacity: 0.5,
-  overlayPosition: 'auto', textColor: '#ffffff', overlayColor: '#000000'
+function clamp(v: number, min: number, max: number) { return Math.min(max, Math.max(min, v)) }
+
+function buildStackedLayout(
+  width: number, height: number,
+  copySet: CopySet, brandKit: BrandKit, style: StyleDefaults,
+  overlayPos: 'top' | 'bottom'
+): ElementPlacement[] {
+  const s = style.fontSizeScale
+  const pad = Math.round(clamp(width * 0.055, 10, 48))
+  const innerW = width - pad * 2
+  const textColor = style.textColor
+  const overlayColor = style.overlayColor
+
+  const logoH = clamp(Math.round(height * 0.07), 18, 52)
+  const logoW = logoH * 3.5
+  const gap = Math.round(pad * 0.45)
+  const ctaH = clamp(Math.round(height * 0.075), 26, 56)
+  const ctaW = clamp(Math.round(innerW * 0.48), 70, 220)
+
+  // Initial font sizes
+  let hSize = clamp(Math.round(Math.min(width * 0.068, height * 0.088) * s), 12, 80)
+  let subSize = clamp(Math.round(hSize * 0.58 * s), 9, 36)
+  const ctaFontSize = clamp(Math.round(hSize * 0.42), 9, 22)
+
+  // Available height for text (overlay should contain: logo + headline + sub + cta + padding)
+  const minOverlayH = logoH + gap + ctaH + gap * 2 + pad * 2
+  const maxOverlayH = Math.round(height * 0.68)
+
+  // Fit font sizes to reasonable budget
+  const textBudget = maxOverlayH - minOverlayH
+  hSize = fitFontSize(copySet.headline, innerW, Math.round(textBudget * 0.58), hSize)
+  subSize = fitFontSize(copySet.subHeadline, innerW, Math.round(textBudget * 0.32), Math.round(hSize * 0.58))
+
+  const hH = estimateTextHeight(copySet.headline, hSize, innerW)
+  const subH = estimateTextHeight(copySet.subHeadline, subSize, innerW)
+  const totalContent = pad + logoH + gap + hH + gap + subH + gap + ctaH + pad
+  const overlayH = clamp(Math.round(totalContent), minOverlayH, maxOverlayH)
+  const overlayY = overlayPos === 'top' ? 0 : height - overlayH
+
+  let cursor = overlayY + pad
+
+  const elements: ElementPlacement[] = [
+    { type: 'overlay', x: 0, y: overlayY, width, height: overlayH, backgroundColor: overlayColor, opacity: style.overlayOpacity, zIndex: 5 },
+    { type: 'logo', x: pad, y: cursor, width: logoW, height: logoH, zIndex: 10 },
+  ]
+  cursor += logoH + gap
+
+  elements.push({ type: 'headline', x: pad, y: cursor, width: innerW, height: hH + 4, fontSize: hSize, textAlign: 'left', color: textColor, zIndex: 10 })
+  cursor += hH + gap
+
+  elements.push({ type: 'subheadline', x: pad, y: cursor, width: innerW, height: subH + 4, fontSize: subSize, textAlign: 'left', color: textColor, zIndex: 10 })
+  cursor += subH + gap
+
+  elements.push({ type: 'cta', x: pad, y: cursor, width: ctaW, height: ctaH, fontSize: ctaFontSize, textAlign: 'center', backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 8, zIndex: 10 })
+
+  return elements
 }
 
 export function generateLayout(
-  spec: AdSpec,
-  copySet: CopySet,
-  brandKit: BrandKit,
-  analysis: ImageAnalysis = DEFAULT_ANALYSIS,
-  style: StyleDefaults = DEFAULT_STYLE
+  spec: AdSpec, copySet: CopySet, brandKit: BrandKit,
+  analysis: ImageAnalysis = DEFAULT_ANALYSIS, style: StyleDefaults = DEFAULT_STYLE
 ): ElementPlacement[] {
   const { width, height } = spec
   const s = style.fontSizeScale
-  const overlayColor = style.overlayColor
-  const overlayOpacity = style.overlayOpacity
-  const textColor = style.textColor || analysis.textColor || '#ffffff'
-
-  // Determine overlay position from analysis + style preference
   const overlayPos = style.overlayPosition === 'auto'
     ? (analysis.safeZone === 'top' ? 'top' : 'bottom')
     : style.overlayPosition
 
-  const isWide = width > height * 2.5
-  const isTall = height > width * 1.5
-  const isSquare = !isWide && !isTall
+  const isWide = width / height > 2.2
   const isTiny = height < 80
-  const isSmallBanner = height < 150 && width > 300
 
-  // --- TINY (e.g. 125×125 button, 120×60) ---
   if (isTiny) {
-    return [{
-      type: 'cta', x: Math.round(width * 0.05), y: Math.round(height * 0.1),
-      width: Math.round(width * 0.9), height: Math.round(height * 0.8),
-      fontSize: Math.max(9, Math.round(height * 0.32 * s)),
-      textAlign: 'center', backgroundColor: brandKit.primaryColor,
-      color: '#ffffff', borderRadius: 4, zIndex: 10,
-    }]
-  }
-
-  // --- WIDE BANNERS (leaderboard, panorama etc) ---
-  if (isWide || isSmallBanner) {
-    const logoH = Math.round(height * 0.45)
-    const logoW = Math.round(logoH * 3)
-    const pad = Math.round(Math.min(width, height) * 0.06)
-    const headingSize = Math.max(10, Math.round(height * 0.3 * s))
-    const subSize = Math.max(8, Math.round(height * 0.2 * s))
-    const ctaW = Math.round(Math.min(width * 0.22, 160))
-    const ctaH = Math.round(height * 0.55)
-
-    const elements: ElementPlacement[] = [
-      { type: 'overlay', x: 0, y: 0, width, height, backgroundColor: overlayColor, opacity: overlayOpacity * 0.6, zIndex: 2 },
-      { type: 'logo', x: pad, y: Math.round((height - logoH) / 2), width: logoW, height: logoH, zIndex: 10 },
-      {
-        type: 'headline', x: logoW + pad * 2, y: Math.round(height * 0.12),
-        width: Math.round(width * 0.48), height: Math.round(height * 0.45),
-        fontSize: headingSize, textAlign: 'left', color: textColor, zIndex: 10,
-      },
-    ]
-
-    if (height > 60) {
-      elements.push({
-        type: 'subheadline', x: logoW + pad * 2, y: Math.round(height * 0.55),
-        width: Math.round(width * 0.44), height: Math.round(height * 0.3),
-        fontSize: subSize, textAlign: 'left', color: textColor, zIndex: 10,
-      })
+    const fs = clamp(Math.round(height * 0.32 * s), 9, 16)
+    if (width / height > 3) {
+      // horizontal tiny — logo left, headline mid, cta right
+      const pad = Math.round(height * 0.1)
+      const logoH = Math.round(height * 0.5)
+      return [
+        { type: 'overlay', x: 0, y: 0, width, height, backgroundColor: style.overlayColor, opacity: style.overlayOpacity * 0.7, zIndex: 5 },
+        { type: 'logo', x: pad, y: Math.round((height - logoH) / 2), width: logoH * 3, height: logoH, zIndex: 10 },
+        { type: 'headline', x: Math.round(width * 0.22), y: Math.round(height * 0.15), width: Math.round(width * 0.46), height: Math.round(height * 0.7), fontSize: fs, textAlign: 'left', color: style.textColor, zIndex: 10 },
+        { type: 'cta', x: Math.round(width * 0.72), y: Math.round(height * 0.15), width: Math.round(width * 0.24), height: Math.round(height * 0.7), fontSize: Math.max(9, fs - 2), textAlign: 'center', backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 3, zIndex: 10 },
+      ]
     }
-
-    elements.push({
-      type: 'cta', x: width - ctaW - pad, y: Math.round((height - ctaH) / 2),
-      width: ctaW, height: ctaH,
-      fontSize: Math.max(9, Math.round(height * 0.24 * s)),
-      textAlign: 'center', backgroundColor: brandKit.primaryColor,
-      color: '#ffffff', borderRadius: 6, zIndex: 10,
-    })
-
-    return elements
+    return [{ type: 'cta', x: Math.round(width * 0.04), y: Math.round(height * 0.1), width: Math.round(width * 0.92), height: Math.round(height * 0.8), fontSize: fs, textAlign: 'center', backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 4, zIndex: 10 }]
   }
 
-  // --- TALL / PORTRAIT / STORIES (9:16, 4:5, etc) ---
-  if (isTall) {
-    const pad = Math.round(width * 0.06)
-    const overlayH = Math.round(height * 0.38)
-    const overlayY = overlayPos === 'top' ? 0 : height - overlayH
-    const logoSize = Math.round(width * 0.09)
+  if (isWide) {
+    const pad = Math.round(clamp(height * 0.1, 8, 24))
+    const logoH = clamp(Math.round(height * 0.42), 16, 44)
+    const logoW = logoH * 3.5
+    const textX = Math.round(logoW + pad * 2.5)
+    const textW = Math.round(width * 0.5)
+    const ctaW = clamp(Math.round(width * 0.2), 60, 160)
+    const ctaH = clamp(Math.round(height * 0.55), 24, 50)
+    let hSize = fitFontSize(copySet.headline, textW, Math.round(height * 0.45), clamp(Math.round(height * 0.3 * s), 10, 28))
+    let subSize = fitFontSize(copySet.subHeadline, textW, Math.round(height * 0.28), clamp(Math.round(hSize * 0.62), 9, 18))
 
     return [
-      { type: 'overlay', x: 0, y: overlayY, width, height: overlayH, backgroundColor: overlayColor, opacity: overlayOpacity, zIndex: 5 },
-      { type: 'logo', x: pad, y: overlayPos === 'top' ? overlayY + pad : pad, width: logoSize * 3, height: logoSize, zIndex: 10 },
-      {
-        type: 'headline', x: pad, y: overlayY + Math.round(overlayH * 0.08),
-        width: width - pad * 2, height: Math.round(overlayH * 0.32),
-        fontSize: Math.round(width * 0.065 * s), textAlign: 'left', color: textColor, zIndex: 10,
-      },
-      {
-        type: 'subheadline', x: pad, y: overlayY + Math.round(overlayH * 0.42),
-        width: width - pad * 2, height: Math.round(overlayH * 0.22),
-        fontSize: Math.round(width * 0.036 * s), textAlign: 'left', color: textColor, zIndex: 10,
-      },
-      {
-        type: 'cta', x: pad, y: overlayY + Math.round(overlayH * 0.67),
-        width: Math.round(width * 0.48), height: Math.round(overlayH * 0.26),
-        fontSize: Math.round(width * 0.032 * s), textAlign: 'center',
-        backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 8, zIndex: 10,
-      },
+      { type: 'overlay', x: 0, y: 0, width, height, backgroundColor: style.overlayColor, opacity: style.overlayOpacity * 0.65, zIndex: 5 },
+      { type: 'logo', x: pad, y: Math.round((height - logoH) / 2), width: logoW, height: logoH, zIndex: 10 },
+      { type: 'headline', x: textX, y: Math.round(height * 0.1), width: textW, height: Math.round(height * 0.45), fontSize: hSize, textAlign: 'left', color: style.textColor, zIndex: 10 },
+      { type: 'subheadline', x: textX, y: Math.round(height * 0.56), width: textW, height: Math.round(height * 0.3), fontSize: subSize, textAlign: 'left', color: style.textColor, zIndex: 10 },
+      { type: 'cta', x: width - ctaW - pad, y: Math.round((height - ctaH) / 2), width: ctaW, height: ctaH, fontSize: clamp(Math.round(hSize * 0.45), 9, 16), textAlign: 'center', backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 5, zIndex: 10 },
     ]
   }
 
-  // --- SQUARE ---
-  if (isSquare) {
-    const pad = Math.round(width * 0.05)
-    const overlayH = Math.round(height * 0.42)
-    const overlayY = overlayPos === 'top' ? 0 : height - overlayH
-    const logoSize = Math.round(width * 0.08)
-    const logoY = overlayPos === 'bottom' ? pad : overlayY + overlayH + pad
-
-    return [
-      { type: 'overlay', x: 0, y: overlayY, width, height: overlayH, backgroundColor: overlayColor, opacity: overlayOpacity, zIndex: 5 },
-      { type: 'logo', x: pad, y: logoY, width: logoSize * 3.5, height: logoSize, zIndex: 10 },
-      {
-        type: 'headline', x: pad, y: overlayY + Math.round(overlayH * 0.06),
-        width: width - pad * 2, height: Math.round(overlayH * 0.34),
-        fontSize: Math.round(width * 0.058 * s), textAlign: 'left', color: textColor, zIndex: 10,
-      },
-      {
-        type: 'subheadline', x: pad, y: overlayY + Math.round(overlayH * 0.42),
-        width: width - pad * 2, height: Math.round(overlayH * 0.22),
-        fontSize: Math.round(width * 0.033 * s), textAlign: 'left', color: textColor, zIndex: 10,
-      },
-      {
-        type: 'cta', x: pad, y: overlayY + Math.round(overlayH * 0.67),
-        width: Math.round(width * 0.44), height: Math.round(overlayH * 0.26),
-        fontSize: Math.round(width * 0.03 * s), textAlign: 'center',
-        backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 8, zIndex: 10,
-      },
-    ]
-  }
-
-  // --- DEFAULT LANDSCAPE ---
-  const pad = Math.round(width * 0.04)
-  const overlayH = Math.round(height * 0.48)
-  const overlayY = overlayPos === 'top' ? 0 : height - overlayH
-  const logoSize = Math.round(height * 0.1)
-  const logoY = overlayPos === 'bottom' ? pad : overlayY + overlayH + pad
-
-  return [
-    { type: 'overlay', x: 0, y: overlayY, width, height: overlayH, backgroundColor: overlayColor, opacity: overlayOpacity, zIndex: 5 },
-    { type: 'logo', x: pad, y: logoY, width: logoSize * 3, height: logoSize, zIndex: 10 },
-    {
-      type: 'headline', x: pad, y: overlayY + Math.round(overlayH * 0.08),
-      width: width - pad * 2, height: Math.round(overlayH * 0.36),
-      fontSize: Math.round(height * 0.1 * s), textAlign: 'left', color: textColor, zIndex: 10,
-    },
-    {
-      type: 'subheadline', x: pad, y: overlayY + Math.round(overlayH * 0.46),
-      width: Math.round(width * 0.7), height: Math.round(overlayH * 0.22),
-      fontSize: Math.round(height * 0.06 * s), textAlign: 'left', color: textColor, zIndex: 10,
-    },
-    {
-      type: 'cta', x: pad, y: overlayY + Math.round(overlayH * 0.7),
-      width: Math.round(width * 0.32), height: Math.round(overlayH * 0.22),
-      fontSize: Math.round(height * 0.055 * s), textAlign: 'center',
-      backgroundColor: brandKit.primaryColor, color: '#ffffff', borderRadius: 6, zIndex: 10,
-    },
-  ]
+  return buildStackedLayout(width, height, copySet, brandKit, style, overlayPos)
 }
 
-// Keep old export name working
 export const generateFallbackLayout = generateLayout
